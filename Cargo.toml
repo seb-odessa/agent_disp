@@ -2,3 +2,6 @@
 name = "agent_disp"
 version = "0.1.0"
 authors = ["seb-odessa <seb@ukr.net>"]
+
+[dependencies]
+rand = "*"
