@@ -5,3 +5,7 @@ authors = ["seb-odessa <seb@ukr.net>"]
 
 [dependencies]
 rand = "*"
+
+[lib]
+name = "lib"
+path = "src/lib/lib.rs"
