@@ -1,5 +1,5 @@
 use std::sync::mpsc;
-use std::sync::mpsc::{Sender,Receiver};
+use std::sync::mpsc::{Sender, Receiver};
 use super::message::{Message, Task};
 
 pub struct Agent<Obj:Task+Send>
@@ -16,7 +16,7 @@ impl <Obj:Task+Send> Drop for Agent <Obj> {
 }
 impl <Obj:Task+Send> Agent <Obj> {
     #[allow(dead_code)]
-    pub fn new<Name : Into<String>>(name : Name, results : Sender<Message<Obj>>) -> Self {
+    pub fn new<Name : Into<String>>(name:Name, results:Sender<Message<Obj>>) -> Self {
         let name = name.into();
         println!("{} created.", &name);
         let (tx, rx) = mpsc::channel();

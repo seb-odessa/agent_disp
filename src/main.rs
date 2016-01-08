@@ -9,7 +9,6 @@ extern crate lib;
 use lib::message::{Message, Task};
 use lib::agent_pool::{AgentPool};
 
-
 struct Work {
     name : String,
     value : u32
@@ -40,17 +39,19 @@ impl Task for Work {
 
 
 fn main() {
-    const THREAD_MAX :usize = 4;
+    const THREAD_MAX :usize = 2;
     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
     let mut pool = AgentPool::new("Pool", THREAD_MAX, pipe.clone());
     let gate = pool.gate();
     let thread = thread::spawn(move || pool.run());
 
     let mut generated:usize = 0;
-    for idx in 0..100 {
-        let task = Work::new(format!("Task_{}", idx));
-        sleep_ms(rand::random::<u32>() % 600);
+    for idx in 0..10 {
+        let name = format!("Task_{}", idx);
+        let task = Work::new(name.clone());
+        sleep_ms(rand::random::<u32>() % 100);
         gate.send(Message::Invoke(task)).unwrap();
+        println!("Main has send {}", name.clone());
         generated += 1;
     }
     gate.send(Message::Quit).unwrap();
