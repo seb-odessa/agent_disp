@@ -38,14 +38,14 @@ impl <Obj:Task+Send> Agent <Obj> {
                 },
                 Message::Invoke(mut task) => {
                     println!("{} <= Message::Invoke({})", self.name, task.name());
-                    task.run();
+                    task.invoke();
                     self.output.send(Message::Done(self.name.clone(), task)).unwrap();
                 }
                 _ => {
                     panic!("{} has received unexpected command.", self.name);
                 }
             }
-        }        
+        }
         self.output.send(Message::Exited(self.name.clone())).unwrap();
     }
 }

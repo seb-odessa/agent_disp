@@ -170,7 +170,6 @@ impl <Obj:Task+Send> AgentPool <Obj> {
             self.process_results();
             self.process_input();
         }
-        println!("{}::run() has finish it's work", self.name);
         self.output.send(Message::Exited(self.name.clone())).unwrap();
     }
 }

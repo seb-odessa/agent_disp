@@ -23,11 +23,11 @@ impl Work {
     }
 }
 impl Task for Work {
-    fn run(&mut self) {
+    fn invoke(&mut self) {
         self.value = rand::random::<u32>() % 3000;
-        println!("{}.run() started. ETA: {} ms", self.name, self.value);
+        println!("{}.invoke() started. ETA: {} ms", self.name, self.value);
         sleep_ms(self.value);
-        println!("{}.run() was completed!", self.name);
+        println!("{}.invoke() was completed!", self.name);
     }
     fn name(&self)->&str {
         &self.name
