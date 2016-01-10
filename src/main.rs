@@ -39,7 +39,7 @@ impl Task for Work {
 
 
 fn main() {
-    const THREAD_MAX :usize = 2;
+    const THREAD_MAX :usize = 3;
     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
     let mut pool = AgentPool::new("Pool", THREAD_MAX, pipe.clone());
     let gate = pool.gate();
@@ -47,6 +47,15 @@ fn main() {
 
     let mut generated:usize = 0;
     for idx in 0..10 {
+        let name = format!("Task_{}", idx);
+        let task = Work::new(name.clone());
+        sleep_ms(rand::random::<u32>() % 100);
+        gate.send(Message::Invoke(task)).unwrap();
+        println!("Main has send {}", name.clone());
+        generated += 1;
+    }
+    sleep_ms(10000);
+    for idx in 0..30 {
         let name = format!("Task_{}", idx);
         let task = Work::new(name.clone());
         sleep_ms(rand::random::<u32>() % 100);

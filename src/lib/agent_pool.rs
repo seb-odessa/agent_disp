@@ -1,5 +1,5 @@
 use std::thread;
-use std::thread::{JoinHandle, sleep_ms};
+use std::thread::{JoinHandle};
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver, TryRecvError};
 use std::collections::HashMap;
@@ -12,16 +12,19 @@ pub struct AgentPool<Obj:Task+Send + 'static> {
     gate : Sender<Message<Obj>>,        /// The external side of the INPUT channel
     input : Receiver<Message<Obj>>,     /// The internal side of the INPUT channel
     output  : Sender<Message<Obj>>,     /// The internal part of the OUTPUT channel
-    agents_threads:Vec<JoinHandle<()>>,
-    agents_gates:HashMap<String, Sender<Message<Obj>>>,
-    agents_tasks:HashMap<String, usize>,
+    agent_gate:HashMap<String, Sender<Message<Obj>>>,
+    agent_ready:HashMap<String, bool>,
+    agent_thread:Vec<JoinHandle<()>>,
     agent_result:Receiver<Message<Obj>>,
-    active:i64,
+    active:usize,
+    wait_quit:bool,
+
 }
 impl <Obj:Task+Send> Drop for AgentPool<Obj> {
     fn drop(&mut self) {
-        while !self.agents_threads.is_empty() {
-            self.agents_threads.pop().unwrap().join().unwrap();
+        println!("{}.drop()", self.name);
+        while !self.agent_thread.is_empty() {
+            self.agent_thread.pop().unwrap().join().unwrap();
         }
         println!("{} was dropped.", self.name);
         self.output.send(Message::Exited(self.name.clone())).unwrap();
@@ -42,18 +45,19 @@ impl <Obj:Task+Send> AgentPool <Obj> {
             gate:gate,
             input:input,
             output:results,
-            agents_threads:Vec::new(),
-            agents_gates:HashMap::new(),
-            agents_tasks:HashMap::new(),
+            agent_gate:HashMap::new(),
+            agent_ready:HashMap::new(),
+            agent_thread:Vec::new(),
             agent_result:agent_result,
             active:0,
+            wait_quit:false,
         };
         for idx in 0..pool.agents {
             let name = format!("Agent_{}", (idx+1));
             let mut agent = Agent::new(name.clone(), agent_gate.clone());
-            pool.agents_tasks.insert(name.clone(), 0);
-            pool.agents_gates.insert(name.clone(), agent.gate());
-            pool.agents_threads.push(thread::spawn(move || agent.run()));
+            pool.agent_gate.insert(name.clone(), agent.gate());
+            pool.agent_ready.insert(name.clone(), true);
+            pool.agent_thread.push(thread::spawn(move || agent.run()));
         }
         return pool;
     }
@@ -64,92 +68,103 @@ impl <Obj:Task+Send> AgentPool <Obj> {
         self.gate.clone()
     }
 
-    fn next_agent(&self) -> String {
-        let mut map = self.agents_tasks.iter();
-        let (mut min_k, mut min_v) = map.next().unwrap();
-        for (k, v) in map.skip(1) {
-            if v < min_v {
-                min_k = k;
-                min_v = v;
-            }
-        }
-        return min_k.clone();
+    fn is_pool_empty(&self) -> bool {
+        return self.active == 0 && !self.wait_quit;
     }
 
-    fn process_input(&mut self, msg:Message<Obj>) -> bool{
+    fn is_pool_full(&self) -> bool {
+        return self.active >= self.agent_gate.len();
+    }
+
+    fn get_ready_agent(&self) -> Option<String> {
+        for (k, v) in &self.agent_ready {
+        //    println!("{}.next_agent(): ({}, {})", self.name, k, v);
+            if *v {
+                return Some(k.clone());
+            }
+        }
+        return None;
+    }
+
+    fn handle_input(&mut self, msg:Message<Obj>) -> (){
         match msg {
             Message::Quit => {
                 println!("{} has received 'Message::Quit'.", self.name);
-                for (_, gate) in &self.agents_gates {
+                for (_, gate) in &self.agent_gate {
                     gate.send(Message::Quit).unwrap();
+                    self.active += 1;
                 }
-                return true;
+                self.wait_quit = true;
             },
             Message::Invoke(arg) => {
-                let name = self.next_agent();
-                *self.agents_tasks.get_mut(&name).unwrap() += 1;
-                println!("{} will send {}-th task to {}", self.name, self.agents_tasks[&name], name);
-                self.agents_gates[&name].send(Message::Invoke(arg)).unwrap();
-                return true;
+                let name = self.get_ready_agent().unwrap();
+                *self.agent_ready.get_mut(&name).unwrap() = false;
+                println!("{} will send {} to {}", self.name, arg.name(), name);
+                self.agent_gate[&name].send(Message::Invoke(arg)).unwrap();
+                self.active += 1;
             }
             _ => {
                 panic!("{} has received unexpected command.", self.name);
                 }
         }
+
     }
 
-    fn read_input(&mut self) -> bool
-    {
-        match self.input.try_recv(){
-            Ok(msg) => return self.process_input(msg),
-            Err(TryRecvError::Empty) => return false,
-            Err(TryRecvError::Disconnected) => panic!("{} has found disconnected channel", self.name),            
-        }
-        return true;
-    }
-
-    fn process_result(&mut self, msg:Message<Obj>) -> bool{
+    fn handle_results(&mut self, msg:Message<Obj>) -> () {
         match msg {
             Message::Done(agent, work) => {
-                println!("{} has received task {} from {}.", self.name, work.name(), agent);
-                *self.agents_tasks.get_mut(&agent).unwrap() -= 1;
+                println!("{} has received {} from {}.", self.name, work.name(), agent);
+                *self.agent_ready.get_mut(&agent).unwrap() = true;
                 self.output.send(Message::Done(agent, work)).unwrap();
+                self.active -= 1;
             }
             Message::Exited(name) => {
-                println!("{} has removed the {} from pool. Remined tasks {}.", self.name, &name, self.agents_tasks[&name]);
-                self.agents_gates.remove(&name);
+                println!("{} has removed the {} from pool.", self.name, &name);
+                self.agent_gate.remove(&name);
+                self.active -= 1;
             }
             _ => {
-                println!("Has received unexpected command.");
+                panic!("{} has received unexpected command.", self.name);
             }
         }
-        return true;
     }
 
-    fn read_results(&mut self) -> bool {
-        match self.agent_result.try_recv() {
-            Ok(msg) => return self.process_result(msg),
-            Err(TryRecvError::Empty) => return false,
-            Err(TryRecvError::Disconnected) => panic!("{} has found disconnected channel", self.name)
+    fn process_input(&mut self) -> () {
+        if self.is_pool_empty() {            
+            match self.input.recv(){
+                Ok(msg) => self.handle_input(msg),
+                Err(err) => panic!("{} has found {}", self.name, err),
+            }
+        } else {
+            match self.input.try_recv(){
+                Ok(msg) => self.handle_input(msg),
+                Err(TryRecvError::Empty) => {},
+                Err(TryRecvError::Disconnected) => panic!("{} has found disconnected channel", self.name),
+            }
+
         }
-        true;
+    }
+
+    fn process_results(&mut self) -> () {
+        if self.is_pool_full() {
+            match self.agent_result.recv() {
+                Ok(msg) => self.handle_results(msg),
+                Err(err) => panic!("{} has found {}", self.name, err),
+            }
+        } else {
+            match self.agent_result.try_recv() {
+                Ok(msg) => self.handle_results(msg),
+                Err(TryRecvError::Empty) => {},
+                Err(TryRecvError::Disconnected) => panic!("{} has found disconnected channel", self.name)
+            }
+        }
     }
 
     #[allow(dead_code)]
     pub fn run(&mut self) {
-        while !self.agents_gates.is_empty() {
-            let has_input = self.read_input();
-            if has_input {
-                self.active += 1;
-            }
-            let has_results = self.read_results();
-            if has_results {
-                self.active -= 1;
-            }
-            if !has_input && !has_results {
-                println!("{} will sleep for 300 ms. Active Tasks {}", self.name, self.active);
-                sleep_ms(300);
-            }
+        while !self.agent_gate.is_empty() {
+            self.process_results();
+            self.process_input();
         }
         println!("{}::run() has finish it's work", self.name);
 ////////////////////////////////////////////////////////////////////
