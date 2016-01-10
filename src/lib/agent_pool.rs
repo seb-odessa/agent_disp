@@ -3,6 +3,7 @@ use std::thread::{JoinHandle};
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver, TryRecvError};
 use std::collections::HashMap;
+
 use super::agent::{Agent};
 use super::message::{Message, Task};
 
@@ -18,16 +19,16 @@ pub struct AgentPool<Obj:Task+Send + 'static> {
     agent_result:Receiver<Message<Obj>>,
     active:usize,
     wait_quit:bool,
-
 }
+
 impl <Obj:Task+Send> Drop for AgentPool<Obj> {
     fn drop(&mut self) {
-        println!("{}.drop()", self.name);
         while !self.agent_thread.is_empty() {
-            self.agent_thread.pop().unwrap().join().unwrap();
+            if let Ok(_) = self.agent_thread.pop().unwrap().join() {
+                println!("{} successful join a thread.", self.name);
+            }
         }
         println!("{} was dropped.", self.name);
-        self.output.send(Message::Exited(self.name.clone())).unwrap();
     }
 
 }
@@ -62,9 +63,7 @@ impl <Obj:Task+Send> AgentPool <Obj> {
         return pool;
     }
 
-    #[allow(dead_code)]
     pub fn gate(&self) -> Sender<Message<Obj>> {
-        println!("{} cloning Gate.", self.name);
         self.gate.clone()
     }
 
@@ -78,7 +77,6 @@ impl <Obj:Task+Send> AgentPool <Obj> {
 
     fn get_ready_agent(&self) -> Option<String> {
         for (k, v) in &self.agent_ready {
-        //    println!("{}.next_agent(): ({}, {})", self.name, k, v);
             if *v {
                 return Some(k.clone());
             }
@@ -89,19 +87,25 @@ impl <Obj:Task+Send> AgentPool <Obj> {
     fn handle_input(&mut self, msg:Message<Obj>) -> (){
         match msg {
             Message::Quit => {
-                println!("{} has received 'Message::Quit'.", self.name);
+                println!("{} <= Message::Quit", self.name);
                 for (_, gate) in &self.agent_gate {
                     gate.send(Message::Quit).unwrap();
                     self.active += 1;
                 }
                 self.wait_quit = true;
             },
-            Message::Invoke(arg) => {
-                let name = self.get_ready_agent().unwrap();
-                *self.agent_ready.get_mut(&name).unwrap() = false;
-                println!("{} will send {} to {}", self.name, arg.name(), name);
-                self.agent_gate[&name].send(Message::Invoke(arg)).unwrap();
-                self.active += 1;
+            Message::Invoke(task) => {
+                match self.get_ready_agent() {
+                    Some(name) => {
+                        println!("{} <= Message::Invoke({})", self.name, task.name());
+                        *self.agent_ready.get_mut(&name).unwrap() = false;
+                        self.agent_gate[&name].send(Message::Invoke(task)).unwrap();
+                        self.active += 1;
+                    }
+                    None => {
+                        self.output.send(Message::Resend(task)).unwrap()
+                    }
+                }
             }
             _ => {
                 panic!("{} has received unexpected command.", self.name);
@@ -112,15 +116,15 @@ impl <Obj:Task+Send> AgentPool <Obj> {
 
     fn handle_results(&mut self, msg:Message<Obj>) -> () {
         match msg {
-            Message::Done(agent, work) => {
-                println!("{} has received {} from {}.", self.name, work.name(), agent);
+            Message::Done(agent, task) => {
+                println!("{} <= Message::Done({},{})", self.name, agent, task.name());
                 *self.agent_ready.get_mut(&agent).unwrap() = true;
-                self.output.send(Message::Done(agent, work)).unwrap();
+                self.output.send(Message::Done(agent, task)).unwrap();
                 self.active -= 1;
             }
-            Message::Exited(name) => {
-                println!("{} has removed the {} from pool.", self.name, &name);
-                self.agent_gate.remove(&name);
+            Message::Exited(agent) => {
+                println!("{} <= Message::Exited({})", self.name, agent);
+                self.agent_gate.remove(&agent);
                 self.active -= 1;
             }
             _ => {
@@ -130,7 +134,7 @@ impl <Obj:Task+Send> AgentPool <Obj> {
     }
 
     fn process_input(&mut self) -> () {
-        if self.is_pool_empty() {            
+        if self.is_pool_empty() {
             match self.input.recv(){
                 Ok(msg) => self.handle_input(msg),
                 Err(err) => panic!("{} has found {}", self.name, err),
@@ -167,6 +171,6 @@ impl <Obj:Task+Send> AgentPool <Obj> {
             self.process_input();
         }
         println!("{}::run() has finish it's work", self.name);
-////////////////////////////////////////////////////////////////////
+        self.output.send(Message::Exited(self.name.clone())).unwrap();
     }
 }

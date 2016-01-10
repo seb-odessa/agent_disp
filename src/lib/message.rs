@@ -8,4 +8,6 @@ pub enum Message<Obj:Task+Send>{
     Exited(String),
     Invoke(Obj),
     Done(String, Obj),
+    Resend(Obj),
+    Nothing
 }

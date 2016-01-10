@@ -25,7 +25,6 @@ impl <Obj:Task+Send> Agent <Obj> {
 
     #[allow(dead_code)]
     pub fn gate(&self) -> Sender<Message<Obj>> {
-        println!("{} cloning Gate.", self.name);
         self.gate.clone()
     }
 
@@ -34,20 +33,19 @@ impl <Obj:Task+Send> Agent <Obj> {
         while let Ok(msg) = self.input.recv() {
             match msg {
                 Message::Quit => {
-                    println!("{} has received 'Message::Quit'.", self.name);
+                    println!("{} <= Message::Quit", self.name);
                     break
                 },
-                Message::Invoke(mut arg) => {
-                    println!("{} has received {}.", self.name, &arg.name());
-                    arg.run();
-                    self.output.send(Message::Done(self.name.clone(), arg)).unwrap();
+                Message::Invoke(mut task) => {
+                    println!("{} <= Message::Invoke({})", self.name, task.name());
+                    task.run();
+                    self.output.send(Message::Done(self.name.clone(), task)).unwrap();
                 }
                 _ => {
-                    println!("{} has received unexpected command.", self.name);
+                    panic!("{} has received unexpected command.", self.name);
                 }
             }
-        }
-        println!("{} finish it's work.", &self.name);
+        }        
         self.output.send(Message::Exited(self.name.clone())).unwrap();
     }
 }
