@@ -1,4 +1,4 @@
-//! This library contains representation of the linked wetwork of cells.
+//! This library contains representation of the linked network of cells.
 //!
 //! The possible way for traverse of the network
 //!

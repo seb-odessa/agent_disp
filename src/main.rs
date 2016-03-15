@@ -1,5 +1,6 @@
 use std::thread;
-use std::thread::{sleep_ms};
+use std::thread::sleep;
+use std::time::Duration;
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
 
@@ -26,7 +27,7 @@ impl Task for Work {
     fn invoke(&mut self) {
         self.value = rand::random::<u32>() % 3000;
         println!("{}.invoke() started. ETA: {} ms", self.name, self.value);
-        sleep_ms(self.value);
+        sleep(Duration::new(0,self.value));
         println!("{}.invoke() was completed!", self.name);
     }
     fn name(&self)->&str {
@@ -48,7 +49,7 @@ impl  Iterator for WorkSource {
     type Item = Work;
     fn next(&mut self) -> Option<Work> {
         self.idx += 1;
-        sleep_ms(rand::random::<u32>() % 500);
+        sleep(Duration::new(0, rand::random::<u32>() % 500));
         Some(Work::new(format!("Task_{}", &self.idx)))
     }
 }
