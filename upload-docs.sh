@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cargo doc 
+
 rm -r -f .gh-pages
 mkdir .gh-pages
 cd .gh-pages
