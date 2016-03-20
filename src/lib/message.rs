@@ -1,3 +1,4 @@
+
 pub trait Task {
     fn name(&self)->&str;
     fn invoke(&mut self);

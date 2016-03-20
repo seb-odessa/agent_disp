@@ -5,6 +5,10 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
 
 extern crate rand;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+
 extern crate lib;
 use lib::message::{Message, Task};
 use lib::agent_pool::{AgentPool};
@@ -15,20 +19,22 @@ struct Work {
 }
 impl Drop for Work {
     fn drop(&mut self) {
-        println!("{} was dropped.", self.name);
+        trace!("{} was dropped.", self.name);
     }
 }
 impl Work {
     pub fn new<Name : Into<String>>(name : Name) -> Self{
+        let name = name.into();
+        trace!("Work::new({})", name);
         Work { name : name.into(), value : 0 }
     }
 }
 impl Task for Work {
     fn invoke(&mut self) {
         self.value = rand::random::<u32>() % 3000;
-        println!("{}.invoke() started. ETA: {} ms", self.name, self.value);
+        trace!("{}.invoke() started. ETA: {} ms", self.name, self.value);
         sleep(Duration::new(0,self.value));
-        println!("{}.invoke() was completed!", self.name);
+        trace!("{}.invoke() was completed!", self.name);
     }
     fn name(&self)->&str {
         &self.name
@@ -49,19 +55,21 @@ impl  Iterator for WorkSource {
     type Item = Work;
     fn next(&mut self) -> Option<Work> {
         self.idx += 1;
-        sleep(Duration::new(0, rand::random::<u32>() % 500));
+        sleep(Duration::new(0, 500+rand::random::<u32>() % 2000));
         Some(Work::new(format!("Task_{}", &self.idx)))
     }
 }
 
 fn main() {
-    const THREAD_MAX :usize = 8;
+    let _ = env_logger::init().unwrap();
+
+    const THREAD_MAX :usize = 4;
     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
     let mut pool = AgentPool::new("Pool", THREAD_MAX, pipe.clone());
     let gate = pool.gate();
     let thread = thread::spawn(move || pool.run());
 
-    const MAX_TASK:usize = 20;
+    const MAX_TASK:usize = 10;
     let mut generated:usize = 0;
     let mut processed:usize = 0;
 
@@ -79,10 +87,12 @@ fn main() {
             WorkState::ReadyForTask => {
                 if generated < MAX_TASK {
                     if let Some(task) = source.next() {
+                        println!("gate.send(Message::Invoke(Task({})))", task.name());
                         gate.send(Message::Invoke(task)).unwrap();
                         generated += 1;
                     }
                 } else {
+                    println!("gate.send(Message::Quit)");
                     gate.send(Message::Quit).unwrap();
                     state = WorkState::WaitForDone;
                 }
@@ -121,7 +131,6 @@ fn main() {
     }
 
     thread.join().unwrap();
-    println!("Main was done.");
     println!("Generated {} tasks.", generated);
     println!("Processed {} tasks.", processed);
 }

@@ -5,6 +5,8 @@ authors = ["seb-odessa <seb@ukr.net>"]
 
 [dependencies]
 rand = "*"
+log = "*"
+env_logger = "*"
 
 [lib]
 name = "lib"

@@ -8,12 +8,12 @@
 //! use std::time::Duration;
 //! use std::sync::mpsc;
 //! use std::sync::mpsc::{Sender, Receiver};
-//! 
+//!
 //! extern crate rand;
 //! extern crate lib;
 //! use lib::message::{Message, Task};
 //! use lib::agent_pool::{AgentPool};
-//! 
+//!
 //! struct Work {
 //!     name : String,
 //!     value : u32
@@ -39,7 +39,7 @@
 //!         &self.name
 //!     }
 //! }
-//! 
+//!
 //! #[allow(dead_code)]
 //! struct WorkSource {
 //!     idx : usize
@@ -58,18 +58,18 @@
 //!         Some(Work::new(format!("Task_{}", &self.idx)))
 //!     }
 //! }
-//! 
+//!
 //! fn main() {
 //!     const THREAD_MAX :usize = 8;
 //!     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
 //!     let mut pool = AgentPool::new("Pool", THREAD_MAX, pipe.clone());
 //!     let gate = pool.gate();
 //!     let thread = thread::spawn(move || pool.run());
-//! 
+//!
 //!     const MAX_TASK:usize = 20;
 //!     let mut generated:usize = 0;
 //!     let mut processed:usize = 0;
-//! 
+//!
 //!     enum WorkState {
 //!         ReadyForTask,
 //!         WaitForDone,
@@ -77,7 +77,7 @@
 //!     }
 //!     let mut state:WorkState = WorkState::ReadyForTask;
 //!     let mut source = WorkSource::new();
-//! 
+//!
 //!     loop {
 //!         let mut message = Message::Nothing;
 //!         match state {
@@ -124,7 +124,7 @@
 //!             }
 //!         }
 //!     }
-//! 
+//!
 //!     thread.join().unwrap();
 //!     println!("Main was done.");
 //!     println!("Generated {} tasks.", generated);
@@ -140,3 +140,7 @@ pub mod agent_pool;
 pub use self::message::{Message};
 pub use self::agent::{Agent};
 pub use self::agent_pool::{AgentPool};
+
+#[macro_use]
+extern crate log;
+extern crate env_logger;

@@ -25,10 +25,10 @@ impl <Obj:Task+Send> Drop for AgentPool<Obj> {
     fn drop(&mut self) {
         while !self.agent_thread.is_empty() {
             if let Ok(_) = self.agent_thread.pop().unwrap().join() {
-                println!("{} successful join a thread.", self.name);
+                trace!("{} successful join a thread.", self.name);
             }
         }
-        println!("{} was dropped.", self.name);
+        trace!("{} was dropped.", self.name);
     }
 
 }
@@ -36,7 +36,7 @@ impl <Obj:Task+Send> AgentPool <Obj> {
     #[allow(dead_code)]
     pub fn new<Name : Into<String>>(name : Name, agents : usize, results : Sender<Message<Obj>>) -> Self {
         let name = name.into();
-        println!("{} created.", &name);
+        trace!("{} created.", &name);
         let (gate, input) = mpsc::channel();
         let (agent_gate, agent_result) : (Sender<Message<Obj>>, Receiver<Message<Obj>>) = mpsc::channel();
 
@@ -87,7 +87,7 @@ impl <Obj:Task+Send> AgentPool <Obj> {
     fn handle_input(&mut self, msg:Message<Obj>) -> (){
         match msg {
             Message::Quit => {
-                println!("{} <= Message::Quit", self.name);
+                trace!("{} <= Message::Quit", self.name);
                 for (_, gate) in &self.agent_gate {
                     gate.send(Message::Quit).unwrap();
                     self.active += 1;
@@ -97,7 +97,7 @@ impl <Obj:Task+Send> AgentPool <Obj> {
             Message::Invoke(task) => {
                 match self.get_ready_agent() {
                     Some(name) => {
-                        println!("{} <= Message::Invoke({})", self.name, task.name());
+                        trace!("{} <= Message::Invoke({})", self.name, task.name());
                         *self.agent_ready.get_mut(&name).unwrap() = false;
                         self.agent_gate[&name].send(Message::Invoke(task)).unwrap();
                         self.active += 1;
@@ -117,13 +117,13 @@ impl <Obj:Task+Send> AgentPool <Obj> {
     fn handle_results(&mut self, msg:Message<Obj>) -> () {
         match msg {
             Message::Done(agent, task) => {
-                println!("{} <= Message::Done({},{})", self.name, agent, task.name());
+                trace!("{} <= Message::Done({},{})", self.name, agent, task.name());
                 *self.agent_ready.get_mut(&agent).unwrap() = true;
                 self.output.send(Message::Done(agent, task)).unwrap();
                 self.active -= 1;
             }
             Message::Exited(agent) => {
-                println!("{} <= Message::Exited({})", self.name, agent);
+                trace!("{} <= Message::Exited({})", self.name, agent);
                 self.agent_gate.remove(&agent);
                 self.active -= 1;
             }
