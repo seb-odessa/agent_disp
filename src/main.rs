@@ -4,14 +4,14 @@ use std::time::Duration;
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
 
-extern crate rand;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
 
+extern crate rand;
 extern crate lib;
 use lib::message::{Message, Task};
-use lib::agent_pool::{AgentPool};
+use lib::supervisor::Supervisor;
 
 struct Work {
     name : String,
@@ -30,14 +30,14 @@ impl Work {
     }
 }
 impl Task for Work {
-    fn invoke(&mut self) {
+    fn run(&mut self) {
         self.value = rand::random::<u32>() % 3000;
         trace!("{}.invoke() started. ETA: {} ms", self.name, self.value);
         sleep(Duration::new(0,self.value));
         trace!("{}.invoke() was completed!", self.name);
     }
-    fn name(&self)->&str {
-        &self.name
+    fn name(&self)->String {
+        self.name.clone()
     }
 }
 
@@ -55,7 +55,7 @@ impl  Iterator for WorkSource {
     type Item = Work;
     fn next(&mut self) -> Option<Work> {
         self.idx += 1;
-        sleep(Duration::new(0, 500+rand::random::<u32>() % 2000));
+        sleep(Duration::new(0, rand::random::<u32>() % 100));
         Some(Work::new(format!("Task_{}", &self.idx)))
     }
 }
@@ -65,11 +65,11 @@ fn main() {
 
     const THREAD_MAX :usize = 4;
     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
-    let mut pool = AgentPool::new("Pool", THREAD_MAX, pipe.clone());
-    let gate = pool.gate();
-    let thread = thread::spawn(move || pool.run());
+    let mut sup = Supervisor::new("Pool", THREAD_MAX, pipe.clone());
+    let gate = sup.gate();
+    let thread = thread::spawn(move || sup.run());
 
-    const MAX_TASK:usize = 10;
+    const MAX_TASK:usize = 100000;
     let mut generated:usize = 0;
     let mut processed:usize = 0;
 
@@ -87,12 +87,12 @@ fn main() {
             WorkState::ReadyForTask => {
                 if generated < MAX_TASK {
                     if let Some(task) = source.next() {
-                        println!("gate.send(Message::Invoke(Task({})))", task.name());
+                        trace!("gate.send(Message::Invoke(Task({})))", task.name());
                         gate.send(Message::Invoke(task)).unwrap();
                         generated += 1;
                     }
                 } else {
-                    println!("gate.send(Message::Quit)");
+                    trace!("gate.send(Message::Quit)");
                     gate.send(Message::Quit).unwrap();
                     state = WorkState::WaitForDone;
                 }
@@ -111,7 +111,7 @@ fn main() {
         }
         match message {
             Message::Done(agent, task) => {
-                println!("Message::Done({},{}) with the value {}", agent, task.name, task.value);
+                trace!("Message::Done({},{}) with the value {}", agent, task.name, task.value);
                 processed += 1;
             }
             Message::Resend(task) => {
@@ -119,7 +119,7 @@ fn main() {
                 gate.send(Message::Invoke(task)).unwrap();
             }
             Message::Exited(name) => {
-                println!("Message::Exited({})", &name);
+                trace!("Message::Exited({})", &name);
                 state = WorkState::Done;
             }
             Message::Nothing => {

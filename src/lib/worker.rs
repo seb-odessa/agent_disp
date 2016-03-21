@@ -2,7 +2,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
 use super::message::{Message, Task};
 
-pub struct Agent<Obj:Task+Send>
+pub struct Worker<Obj:Task+Send>
 {
     name : String,
     gate : Sender<Message<Obj>>,
@@ -10,26 +10,23 @@ pub struct Agent<Obj:Task+Send>
     output  : Sender<Message<Obj>>,
     processed : usize,
 }
-impl <Obj:Task+Send> Drop for Agent <Obj> {
+impl <Obj:Task+Send> Drop for Worker <Obj> {
     fn drop(&mut self) {
         trace!("{} dropped. Processed {} tasks.", self.name, self.processed);
     }
 }
-impl <Obj:Task+Send> Agent <Obj> {
-    #[allow(dead_code)]
+impl <Obj:Task+Send> Worker <Obj> {
     pub fn new<Name : Into<String>>(name:Name, results:Sender<Message<Obj>>) -> Self {
         let name = name.into();
         trace!("{} created.", &name);
         let (tx, rx) = mpsc::channel();
-        Agent { name:name, gate:tx, input:rx, output:results, processed : 0 }
+        Worker { name:name, gate:tx, input:rx, output:results, processed : 0 }
     }
 
-    #[allow(dead_code)]
     pub fn gate(&self) -> Sender<Message<Obj>> {
         self.gate.clone()
     }
 
-    #[allow(dead_code)]
     pub fn run(&mut self) {
         while let Ok(msg) = self.input.recv() {
             match msg {
@@ -39,7 +36,7 @@ impl <Obj:Task+Send> Agent <Obj> {
                 },
                 Message::Invoke(mut task) => {
                     trace!("{} <= Message::Invoke({})", self.name, task.name());
-                    task.invoke();
+                    task.run();
                     self.output.send(Message::Done(self.name.clone(), task)).unwrap();
                     self.processed += 1;
                 }

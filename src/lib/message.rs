@@ -1,7 +1,7 @@
 
 pub trait Task {
-    fn name(&self)->&str;
-    fn invoke(&mut self);
+    fn name(&self)->String;
+    fn run(&mut self);
 }
 
 pub enum Message<Obj:Task+Send>{

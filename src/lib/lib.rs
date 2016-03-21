@@ -135,11 +135,11 @@
 //!
 
 pub mod message;
-pub mod agent;
-pub mod agent_pool;
+pub mod worker;
+pub mod supervisor;
 pub use self::message::{Message};
-pub use self::agent::{Agent};
-pub use self::agent_pool::{AgentPool};
+pub use self::worker::Worker;
+pub use self::supervisor::Supervisor;
 
 #[macro_use]
 extern crate log;
