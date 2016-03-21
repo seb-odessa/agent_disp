@@ -41,17 +41,15 @@ impl Task for Work {
     }
 }
 
-#[allow(dead_code)]
 struct WorkSource {
     idx : usize
 }
 impl WorkSource {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         WorkSource { idx : 0 }
     }
 }
-impl  Iterator for WorkSource {
+impl Iterator for WorkSource {
     type Item = Work;
     fn next(&mut self) -> Option<Work> {
         self.idx += 1;
@@ -62,7 +60,6 @@ impl  Iterator for WorkSource {
 
 fn main() {
     let _ = env_logger::init().unwrap();
-
     const THREAD_MAX :usize = 4;
     let (pipe, results) : (Sender<Message<Work>>, Receiver<Message<Work>>) = mpsc::channel();
     let mut sup = Supervisor::new("Pool", THREAD_MAX, pipe.clone());
@@ -80,7 +77,6 @@ fn main() {
     }
     let mut state:WorkState = WorkState::ReadyForTask;
     let mut source = WorkSource::new();
-
     loop {
         let mut message = Message::Nothing;
         match state {
