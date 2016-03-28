@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
-use super::message::{Message, Task};
+use super::types::{Message, Task};
 
 pub struct Worker<Obj:Task+Send>
 {

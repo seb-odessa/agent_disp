@@ -5,7 +5,7 @@ use std::sync::mpsc::{Sender, Receiver, TryRecvError};
 use std::collections::HashMap;
 
 use super::worker::Worker;
-use super::message::{Message, Task};
+use super::types::{Message, Task};
 
 pub struct Supervisor<Obj:Task+Send + 'static> {
     name : String,                      /// The name of the Pool

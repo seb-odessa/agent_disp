@@ -139,10 +139,10 @@
 //! ```
 //!
 
-pub mod message;
+pub mod types;
 pub mod worker;
 pub mod supervisor;
-pub use self::message::{Message};
+pub use self::types::{Message};
 pub use self::worker::Worker;
 pub use self::supervisor::Supervisor;
 

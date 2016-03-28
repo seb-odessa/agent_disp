@@ -10,7 +10,7 @@ extern crate env_logger;
 
 extern crate rand;
 extern crate lib;
-use lib::message::{Message, Task};
+use lib::types::{Message, Task};
 use lib::supervisor::Supervisor;
 
 struct Work {
