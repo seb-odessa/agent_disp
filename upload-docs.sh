@@ -16,7 +16,7 @@ EOF
 
 git add -f --all .
 git commit -m "Added docs"
-git remote add origin git@github.com:seb-odessa/agent_disp.git
+git remote add origin git@github.com:seb-odessa/$(basename $(pwd)).git
 git push -f origin master:gh-pages
 
 cd ..
